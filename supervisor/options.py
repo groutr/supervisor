@@ -64,6 +64,12 @@ VERSION = _read_version_txt()
 def normalize_path(v):
     return os.path.normpath(os.path.abspath(os.path.expanduser(v)))
 
+def st_uid(f):
+    try:
+        return os.stat(f).st_uid
+    except TypeError:
+        return os.fstat(f.fileno()).st_uid
+
 class Dummy:
     pass
 
@@ -457,6 +463,8 @@ class ServerOptions(Options):
                  "t", "strip_ansi", flag=1, default=0)
         self.add("no_root_children", "supervisord.no_root_children",
                  "x", "no_root_children", flag=1, default=0)
+        self.add("inherit_file_uid", "supervisord.inherit_file_uid",
+                 "", "inherit_file_uid", flag=1, default=0)
         self.add("profile_options", "supervisord.profile_options",
                  "", "profile_options=", profile_options, default=None)
         self.pidhistory = {}
@@ -545,6 +553,7 @@ class ServerOptions(Options):
     def read_config(self, fp):
         # Clear parse messages, since we may be re-reading the
         # config a second time after a reload.
+        print("Reading config: ", fp)
         self.parse_warnings = []
         self.parse_infos = []
 
@@ -555,6 +564,7 @@ class ServerOptions(Options):
                 raise ValueError("could not find config file %s" % fp)
             try:
                 fp = self.open(fp, 'r')
+                self.configfile_uid = st_uid(fp)
                 need_close = True
             except (IOError, OSError):
                 raise ValueError("could not read config file %s" % fp)
@@ -611,7 +621,7 @@ class ServerOptions(Options):
         if not 'supervisord' in sections:
             raise ValueError('.ini file does not include supervisord section')
 
-        common_expansions = {'here':self.here}
+        common_expansions = {'here': self.here}
         def get(opt, default, **kwargs):
             expansions = kwargs.get('expansions', {})
             expansions.update(common_expansions)
@@ -903,7 +913,13 @@ class ServerOptions(Options):
             uid = name_to_uid(user)
 
         if self.no_root_children and uid == 0:
-            raise ValueError("Invalid root process detected")
+            raise ValueError("Invalid root process detected ({})".format(program_name))
+    
+        if self.inherit_file_uid:
+            print(uid, self.configfile_uid)
+            f_uid = parser.section_to_file.get(section, (None, self.configfile_uid))[1]
+            if uid != 0 and uid != f_uid:
+                raise ValueError("User mismatch found in {}".format(program_name))
 
 
         umask = get(section, 'umask', None)
@@ -1734,12 +1750,15 @@ class UnhosedConfigParser(ConfigParser.RawConfigParser):
         for filename in filenames:
             sections_orig = self._sections.copy()
 
-            ok_filenames.extend(
+            # find owner of file
+            file_uid = os.stat(filename).st_uid
+
+            ok_filenames.append(
                 ConfigParser.RawConfigParser.read(self, [filename], **kwargs))
 
             diff = frozenset(self._sections) - frozenset(sections_orig)
             for section in diff:
-                self.section_to_file[section] = filename
+                self.section_to_file[section] = (filename, file_uid)
         return ok_filenames
 
     def saneget(self, section, option, default=_marker, do_expand=True,
