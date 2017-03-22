@@ -24,6 +24,7 @@ from supervisor.tests.base import DummyProcess
 from supervisor.tests.base import DummySocketConfig
 from supervisor.tests.base import lstrip
 
+from supervisor.options import st_uid
 
 class OptionTests(unittest.TestCase):
 
@@ -3417,7 +3418,8 @@ class UnhosedConfigParserTests(unittest.TestCase):
             f.write("[foo]\n")
             f.flush()
             parser.read([f.name])
-        self.assertEqual(parser.section_to_file['foo'], f.name)
+            uid = st_uid(f)
+        self.assertEqual(parser.section_to_file['foo'], (f.name, uid))
 
     def test_read_section_to_file_read_multiple_files(self):
         parser = self._makeOne()
@@ -3428,8 +3430,10 @@ class UnhosedConfigParserTests(unittest.TestCase):
                 f2.write("[bar]\n")
                 f2.flush()
                 parser.read([f1.name, f2.name])
-        self.assertEqual(parser.section_to_file['foo'], f1.name)
-        self.assertEqual(parser.section_to_file['bar'], f2.name)
+                uidf1 = st_uid(f1)
+                uidf2 = st_uid(f2)
+        self.assertEqual(parser.section_to_file['foo'], (f1.name, uidf1))
+        self.assertEqual(parser.section_to_file['bar'], (f2.name, uidf2))
 
 class UtilFunctionsTests(unittest.TestCase):
     def test_make_namespec(self):
