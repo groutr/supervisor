@@ -652,6 +652,7 @@ class ServerOptions(Options):
         section.nocleanup = boolean(get('nocleanup', 'false'))
         section.strip_ansi = boolean(get('strip_ansi', 'false'))
         section.no_root_children = boolean(get('no_root_children', 'false'))
+        section.inherit_file_uid = boolean(get('inherit_file_uid', 'false'))
 
         environ_str = get('environment', '')
         environ_str = expand(environ_str, expansions, 'environment')
@@ -1753,7 +1754,7 @@ class UnhosedConfigParser(ConfigParser.RawConfigParser):
             # find owner of file
             file_uid = os.stat(filename).st_uid
 
-            ok_filenames.append(
+            ok_filenames.extend(
                 ConfigParser.RawConfigParser.read(self, [filename], **kwargs))
 
             diff = frozenset(self._sections) - frozenset(sections_orig)
