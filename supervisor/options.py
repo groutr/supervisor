@@ -863,7 +863,7 @@ class ServerOptions(Options):
         except ValueError as e:
             filename = parser.section_to_file.get(section, self.configfile)
             raise ValueError('%s in section %r (file: %r)'
-                             % (e, section, filename))
+                             % (e, section, filename[0]))
 
     def _processes_from_section(self, parser, section, group_name,
                                 klass=None):
@@ -917,9 +917,9 @@ class ServerOptions(Options):
             raise ValueError("Invalid root process detected ({})".format(program_name))
     
         if self.inherit_file_uid:
-            print(uid, self.configfile_uid)
             f_uid = parser.section_to_file.get(section, (None, self.configfile_uid))[1]
-            if uid != 0 and uid != f_uid:
+            if f_uid != 0 and uid != f_uid:
+                # If the file isn't owned by root, then enforce inherited privileges
                 raise ValueError("User mismatch found in {}".format(program_name))
 
 
